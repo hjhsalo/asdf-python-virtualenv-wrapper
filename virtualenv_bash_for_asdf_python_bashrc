@@ -1,0 +1,76 @@
+# python virtualenv helpers for asdf
+# https://github.com/asdf-vm/asdf/issues/636#issuecomment-674092994
+# Other commands adapted from virtualenvwrapper source
+# Zsh compatibility has been removed. Just Bash is supported.
+export WORKON_HOME=$HOME/.virtualenvs
+
+mkvirtualenv(){
+    virtualenv -v -p $(asdf where python "$1")/bin/python "$WORKON_HOME"/"$2"
+    workon "$2"
+}
+
+rmvirtualenv(){
+    rm -rf "$WORKON_HOME"/"$1"
+}
+
+workon(){
+    source "$WORKON_HOME"/"$1"/bin/activate
+}
+
+lsvirtualenv(){
+    (echo $WORKON_HOME/*/bin/activate) 2>/dev/null \
+        | command \sed "s|$WORKON_HOME/||g" \
+        | command \sed "s|/bin/activate||g" \
+        | command \fmt -w 1 \
+        | (unset GREP_OPTIONS; command \egrep -v '^\*$') 2>/dev/null
+}
+
+function virtualenvwrapper_cd {
+    if [ -n "$BASH" ]
+    then
+        builtin \cd "$@"
+    fi
+}
+
+# Verify that the active environment exists
+function virtualenvwrapper_verify_active_environment {
+    if [ ! -n "${VIRTUAL_ENV}" ] || [ ! -d "${VIRTUAL_ENV}" ]
+    then
+        echo "ERROR: no virtualenv active, or active virtualenv is missing" >&2
+        return 1
+    fi
+    return 0
+}
+
+# Does a ``cd`` to the root of the currently-active virtualenv.
+function cdvirtualenv {
+#    virtualenvwrapper_verify_workon_home || return 1
+    virtualenvwrapper_verify_active_environment || return 1
+    virtualenvwrapper_cd $VIRTUAL_ENV/$1
+}
+
+# Set up tab completion.
+function virtualenvwrapper_setup_tab_completion {
+    if [ -n "$BASH" ] ; then
+        _virtualenvs () {
+            local cur="${COMP_WORDS[COMP_CWORD]}"
+            COMPREPLY=( $(compgen -W "`lsvirtualenv`" -- ${cur}) )
+        }
+        _cdvirtualenv_complete () {
+            local cur="$2"
+           COMPREPLY=( $(cdvirtualenv && compgen -d -- "${cur}" ) )
+        }
+#        _cdsitepackages_complete () {
+#            local cur="$2"
+#            COMPREPLY=( $(cdsitepackages && compgen -d -- "${cur}" ) )
+#        }
+        complete -o nospace -F _cdvirtualenv_complete -S/ cdvirtualenv
+#        complete -o nospace -F _cdsitepackages_complete -S/ cdsitepackages
+        complete -o default -o nospace -F _virtualenvs workon
+        complete -o default -o nospace -F _virtualenvs rmvirtualenv
+    fi
+}
+
+virtualenvwrapper_setup_tab_completion
+
+## END: asdf virtualenv-wrapper compatibility
